@@ -5,7 +5,9 @@ import jsPDF from "jspdf";
 import UploadZone from "./components/UploadZone";
 import ResultsPanel from "./components/ResultsPanel";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000/api";
+const API_BASE =
+  import.meta.env.VITE_API_BASE ||
+  (import.meta.env.DEV ? "http://localhost:8000/api" : "");
 const STAGES = ["ingestion", "structural", "lexical", "ocr", "semantic", "risk", "report"];
 
 function downloadBlob(filename, content, type) {
@@ -60,6 +62,10 @@ export default function App() {
   };
 
   const runComparison = async () => {
+    if (!API_BASE) {
+      setError("Missing VITE_API_BASE. Set it in Vercel to your backend URL (example: https://your-backend-domain/api).");
+      return;
+    }
     setLoading(true);
     setResult(null);
     setError("");
@@ -76,7 +82,14 @@ export default function App() {
       setResult(finalResult);
       if (finalResult?.stage_progress) setStageProgress(finalResult.stage_progress);
     } catch (err) {
-      setError(err?.response?.data?.detail || err.message || "Comparison failed.");
+      const isNetwork = err?.code === "ERR_NETWORK" || /network/i.test(err?.message || "");
+      if (isNetwork) {
+        setError(
+          "Network error: backend API is unreachable. Configure VITE_API_BASE to your deployed backend URL and redeploy."
+        );
+      } else {
+        setError(err?.response?.data?.detail || err.message || "Comparison failed.");
+      }
     } finally {
       setLoading(false);
     }
