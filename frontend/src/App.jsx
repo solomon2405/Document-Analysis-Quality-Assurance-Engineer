@@ -5,9 +5,24 @@ import jsPDF from "jspdf";
 import UploadZone from "./components/UploadZone";
 import ResultsPanel from "./components/ResultsPanel";
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE ||
-  (import.meta.env.DEV ? "http://localhost:8000/api" : "");
+function resolveApiBase() {
+  const raw = String(import.meta.env.VITE_API_BASE || "").trim();
+  const cleaned = raw.split("#")[0].trim();
+  if (!cleaned) {
+    return import.meta.env.DEV ? "http://localhost:8000/api" : "";
+  }
+  if (/^https?:\/\//i.test(cleaned)) {
+    try {
+      const parsed = new URL(cleaned);
+      return parsed.toString().replace(/\/$/, "");
+    } catch {
+      return "";
+    }
+  }
+  return cleaned.startsWith("/") ? cleaned.replace(/\/$/, "") : "";
+}
+
+const API_BASE = resolveApiBase();
 const STAGES = ["ingestion", "structural", "lexical", "ocr", "semantic", "risk", "report"];
 
 function downloadBlob(filename, content, type) {
@@ -63,7 +78,9 @@ export default function App() {
 
   const runComparison = async () => {
     if (!API_BASE) {
-      setError("Missing VITE_API_BASE. Set it in Vercel to your backend URL (example: https://your-backend-domain/api).");
+      setError(
+        "Invalid or missing VITE_API_BASE. Set it to a full URL like https://your-backend-host/api and redeploy."
+      );
       return;
     }
     setLoading(true);

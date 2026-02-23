@@ -9,7 +9,6 @@ from io import BytesIO
 from pathlib import Path
 
 import pdfplumber
-import spacy
 from docx import Document
 from fastapi import UploadFile
 from openpyxl import load_workbook
@@ -24,8 +23,6 @@ CURRENCY_PATTERN = re.compile(r"\$[\d,]+(?:\.\d{1,2})?")
 PERCENT_PATTERN = re.compile(r"\b\d+(?:\.\d+)?%\b")
 SECTION_REF_PATTERN = re.compile(r"\bsection\s+\d+(?:\.\d+)?\b", re.IGNORECASE)
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
-
-_nlp = spacy.blank("en")
 
 
 @dataclass(slots=True)
@@ -87,10 +84,8 @@ def _is_heading(text: str) -> bool:
 
 
 def _extract_entities_and_numbers(text: str, entities: dict[str, set[str]], numerics: set[str], refs: set[str]) -> None:
-    doc = _nlp(text)
-    for token in doc:
-        if token.like_num:
-            numerics.add(token.text)
+    for token in re.findall(r"\b\d+(?:[.,]\d+)?\b", text):
+        numerics.add(token)
     for match in DATE_PATTERN.findall(text):
         entities["DATE"].add(match)
     for match in CURRENCY_PATTERN.findall(text):
@@ -122,7 +117,7 @@ def _extract_docx(file_name: str, file_bytes: bytes) -> tuple[list[TextUnit], li
                 t.heading_level = 1
                 t.section_key = line[:80]
             headings.extend(row_tokens)
-        if line.startswith(("-", "*", "•")):
+        if line.startswith(("-", "*")):
             bullets.extend(row_tokens)
         units.extend(row_tokens)
     return units, headings, bullets
@@ -145,7 +140,7 @@ def _extract_pdf(file_name: str, file_bytes: bytes) -> tuple[list[TextUnit], lis
                         t.heading_level = 1
                         t.section_key = clean[:80]
                     headings.extend(row_tokens)
-                if clean.startswith(("-", "*", "•")):
+                if clean.startswith(("-", "*")):
                     bullets.extend(row_tokens)
                 units.extend(row_tokens)
     return units, headings, bullets
@@ -165,7 +160,7 @@ def _extract_txt(file_name: str, file_bytes: bytes) -> tuple[list[TextUnit], lis
                 t.heading_level = 1
                 t.section_key = clean[:80]
             headings.extend(row_tokens)
-        if clean.startswith(("-", "*", "•")):
+        if clean.startswith(("-", "*")):
             bullets.extend(row_tokens)
         units.extend(row_tokens)
     return units, headings, bullets
